@@ -2,9 +2,11 @@
 """Selenium-based scraper for MTS."""
 
 import time
+from warnings import warn
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -15,6 +17,7 @@ class Scraper:
     MTS_BASE = "https://moseskonto.tu-berlin.de/moses/modultransfersystem/"
     PROGRAM_SEARCH = MTS_BASE + "studiengaenge/suchen.html"
     PROGRAM_SEARCH_FORM_ID = "j_idt99"
+    SHOW_COMBINED = MTS_BASE + "studiengaenge/anzeigenKombiniert.html"
 
     def __init__(self, throttle_delay=2.0):
         """Create the Selenium WebDriver."""
@@ -117,3 +120,57 @@ class Scraper:
     def _extract_combined_id(self, href):
         """Extract the ID from an `anzeigenKombiniert.html` link."""
         return int(href.rsplit("=", 1)[1])
+
+    def get_areas(self, combined_id):
+        """Get study areas for a combined ID."""
+        self._load_page(
+            f"{self.SHOW_COMBINED}?id={combined_id}",
+            ("css_vis", "table[role=treegrid]")
+        )
+
+        self._expand_treegrid("table[role=treegrid] tbody")
+
+        rows = self.browser.find_elements_by_css_selector(
+            "table[role=treegrid] tbody tr")
+
+        if not rows:
+            warn("No areas found?!")
+            return []
+
+        areas = []
+        # TODO: Get indentation level/subareas
+        for row in rows:
+            areas.append((
+                row.find_element_by_css_selector("td:first-child").text,
+                row
+            ))
+        return areas
+
+    def _expand_treegrid(self, tbody_sel):
+        """Expand a treegrid table.
+
+        tbody_sel -- CSS selector for the tbody element.
+        """
+        rows = self.browser.find_elements_by_css_selector(f"{tbody_sel} tr")
+        for row in rows:
+            # Check if the row is already expanded
+            if row.get_attribute("aria-expanded") == "true":
+                continue
+
+            # All rows have a toggler, but it's hidden for
+            # non-expandable ones
+            toggler = row.find_element_by_css_selector(".ui-treetable-toggler")
+            if "visibility: hidden" in toggler.get_attribute("style"):
+                continue
+
+            # Expanding creates a POST request, so we should throttle
+            self._throttle_request()
+            # There is no event listener on the toggler itself, so we
+            # can't click it
+            ActionChains(self.browser) \
+                .move_to_element(toggler).click().perform()
+            id = row.get_attribute("id").replace(":", r"\:")
+            self._wait_for((
+                "css_vis",
+                f"#{id}[aria-expanded=true]"
+            ))
