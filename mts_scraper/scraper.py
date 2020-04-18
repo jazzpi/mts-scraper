@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Selenium-based scraper for MTS."""
 
+import logging
 import time
-from warnings import warn
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -19,13 +19,15 @@ class Scraper:
     PROGRAM_SEARCH_FORM_ID = "j_idt99"
     SHOW_COMBINED = MTS_BASE + "studiengaenge/anzeigenKombiniert.html"
 
-    def __init__(self, throttle_delay=2.0):
+    def __init__(self, log_level, throttle_delay=2.0):
         """Create the Selenium WebDriver."""
         option = webdriver.ChromeOptions()
         option.add_argument("--incognito")
         self.browser = webdriver.Chrome(options=option)
         self._last_request = 0
         self._throttle_delay = throttle_delay
+        self._logger = logging.getLogger("Scraper")
+        self._logger.setLevel(log_level)
 
     def __del__(self):
         """Close the Selenium WebDriver."""
@@ -33,7 +35,7 @@ class Scraper:
 
     def _throttle_request(self):
         """Check rate limit and (potentially) wait."""
-        print(f"{time.time()}, {self._last_request}")
+        self._logger.debug(f"{time.time()}, {self._last_request}")
         diff = self._throttle_delay - (time.time() - self._last_request)
         while diff > 0:
             time.sleep(diff)
@@ -67,7 +69,7 @@ class Scraper:
         if wait_for[0] == "cond":
             until = wait_for[1]
         elif wait_for[0] == "css_vis":
-            print("Waiting for CSS selector " + wait_for[1])
+            self._logger.debug("Waiting for CSS selector " + wait_for[1])
             until = EC.visibility_of_element_located((
                 By.CSS_SELECTOR, wait_for[1]
             ))
@@ -144,7 +146,7 @@ class Scraper:
             "table[role=treegrid] tbody tr")
 
         if not rows:
-            warn("No areas found?!")
+            self._logger.warning("No areas found?!")
             return []
 
         areas = []

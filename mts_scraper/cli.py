@@ -4,6 +4,7 @@
 import argparse
 import sys
 import time
+import logging
 
 
 class CLI:
@@ -33,7 +34,15 @@ class CLI:
         parser.add_argument("-s", "--save", metavar="FILE",
                             help="""JSON file for saving the scraping progress
                             (default: CURRENT_DATETIME.json)""")
+        parser.add_argument("-v", "--verbosity", default="INFO",
+                            choices=["DEBUG", "INFO", "WARN", "ERROR",
+                                     "CRITICAL"])
         self.args = parser.parse_args()
+        self.log_level = getattr(logging, self.args.verbosity)
+
+        logging.basicConfig()
+        self._logger = logging.getLogger("CLI")
+        self._logger.setLevel(self.log_level)
 
         if self.args.save is None:
             self.args.save = time.strftime("%Y-%m-%dT%H:%M:%S.json")
@@ -44,11 +53,11 @@ class CLI:
     def _check_args(self):
         """Check if specified arguments are valid, abort otherwise."""
         if self.args.cont is not None:
-            print("--continue is not implemented yet!", file=sys.stderr)
+            self._logger.warning("--continue is not implemented yet!")
             sys.exit(1)
         if self._count_actions() > 1:
-            print("Only one of -c, -p and -n can be specified at once!",
-                  file=sys.stderr)
+            self._logger.warning(
+                "Only one of -c, -p and -n can be specified at once!")
             sys.exit(1)
 
     def _count_actions(self):
@@ -74,7 +83,7 @@ class CLI:
                 f"Scrape `{p['name']}' ({p['degree']}, ID: {p['id']})? [Y/n] "
             )
             if ans == "n":
-                print("Aborting.", file=sys.stderr)
+                self._logger.error("Aborting.")
                 sys.exit(1)
             return p['id']
 
@@ -87,18 +96,17 @@ class CLI:
             n = int(ans)
             return programs[n-1]['id']
         except (ValueError, IndexError):
-            print("Aborting.", file=sys.stderr)
+            self._logger.error("Aborting.")
             sys.exit(1)
 
-    @staticmethod
-    def _ask_for_program_name():
+    def _ask_for_program_name(self):
         """Figure out what program we should scrape (by name).
 
         Returns the name.
         """
         ans = input("Enter program name (leave empty to abort): ")
         if not ans:
-            print("Aborting.", file=sys.stderr)
+            self._logger.error("Aborting.")
             sys.exit(1)
         return ans
 
@@ -125,7 +133,7 @@ class CLI:
         if self.args.program_id is None:
             self.args.program_id = self._ask_for_program_id()
 
-        print(f"Scraping course with ID {self.args.program_id}")
+        self._logger.info(f"Scraping course with ID {self.args.program_id}")
         areas = self._scraper.get_areas(self.args.program_id)
         print("Areas:")
         for area in areas:
