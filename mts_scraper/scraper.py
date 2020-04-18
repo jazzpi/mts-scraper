@@ -151,18 +151,18 @@ class Scraper:
 
         areas = []
         for row in rows:
-            first_cell = row.find_element_by_css_selector("td:first-child")
-            area = {
-                "element": row,
-                "title": first_cell.text,
-                "subareas": []
-            }
-            level = len(
-                first_cell.find_elements_by_css_selector(
-                    "span.ui-treetable-indent"))
+            area = Area(row)
+
+            # We need to figure out the parent to append to. Unless
+            # we're at top level, this is always the last area at the
+            # level above.
+            indents = row.find_elements_by_css_selector(
+                "td:first-child span.ui-treetable-indent"
+            )
+            level = len(indents)
             above = areas
             for i in range(level):
-                above = above[-1]["subareas"]
+                above = above[-1].subareas
             above.append(area)
 
         return areas
@@ -195,3 +195,23 @@ class Scraper:
                 "css_vis",
                 f"#{id}[aria-expanded=true]"
             ))
+
+
+class Area:
+    """A study area from the combined page."""
+
+    def __init__(self, element):
+        """Create the area for a tr from the combined page."""
+        self.element = element
+        self.title = element.find_element_by_css_selector(":first-child").text
+        self.subareas = []
+
+    def __str__(self):
+        if self.subareas:
+            return self.title + " -> [" + ", ".join(map(str, self.subareas)) + \
+                "]"
+        else:
+            return self.title
+
+    def __repr__(self):
+        return str(self)

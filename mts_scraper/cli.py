@@ -112,8 +112,8 @@ class CLI:
 
     def _print_area(self, area, level=0):
         """Print an area and all of its subareas."""
-        print("  " * level + area["title"])
-        for a in area["subareas"]:
+        print("  " * level + area.title)
+        for a in area.subareas:
             self._print_area(a, level + 1)
 
     def main(self, scraper):
