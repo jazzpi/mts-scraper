@@ -116,13 +116,23 @@ class Scraper:
 
         return programs
 
-    @classmethod
-    def _extract_combined_id(self, href):
+    @staticmethod
+    def _extract_combined_id(href):
         """Extract the ID from an `anzeigenKombiniert.html` link."""
         return int(href.rsplit("=", 1)[1])
 
     def get_areas(self, combined_id):
-        """Get study areas for a combined ID."""
+        """Get study areas for a combined ID.
+
+        Returns a list of top-level areas, which may contain subareas.
+        Each area is of the format
+
+        {
+            "element": web_element_for_tr,
+            "title": title,
+            "subareas": [area_1, area_2, ...]
+        }
+        """
         self._load_page(
             f"{self.SHOW_COMBINED}?id={combined_id}",
             ("css_vis", "table[role=treegrid]")
@@ -138,12 +148,21 @@ class Scraper:
             return []
 
         areas = []
-        # TODO: Get indentation level/subareas
         for row in rows:
-            areas.append((
-                row.find_element_by_css_selector("td:first-child").text,
-                row
-            ))
+            first_cell = row.find_element_by_css_selector("td:first-child")
+            area = {
+                "element": row,
+                "title": first_cell.text,
+                "subareas": []
+            }
+            level = len(
+                first_cell.find_elements_by_css_selector(
+                    "span.ui-treetable-indent"))
+            above = areas
+            for i in range(level):
+                above = above[-1]["subareas"]
+            above.append(area)
+
         return areas
 
     def _expand_treegrid(self, tbody_sel):

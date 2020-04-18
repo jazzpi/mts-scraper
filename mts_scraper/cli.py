@@ -39,6 +39,7 @@ class CLI:
             self.args.save = time.strftime("%Y-%m-%dT%H:%M:%S.json")
 
         self._check_args()
+        self._scraper = None
 
     def _check_args(self):
         """Check if specified arguments are valid, abort otherwise."""
@@ -89,7 +90,8 @@ class CLI:
             print("Aborting.", file=sys.stderr)
             sys.exit(1)
 
-    def _ask_for_program_name(self):
+    @staticmethod
+    def _ask_for_program_name():
         """Figure out what program we should scrape (by name).
 
         Returns the name.
@@ -100,8 +102,24 @@ class CLI:
             sys.exit(1)
         return ans
 
+    def _print_area(self, area, level=0):
+        """Print an area and all of its subareas."""
+        print("  " * level + area["title"])
+        for a in area["subareas"]:
+            self._print_area(a, level + 1)
+
     def main(self, scraper):
-        """Execute whatever was specified on the command line."""
+        """Execute whatever was specified on the command line.
+
+        After figuring out the program ID, the following steps are
+        executed:
+        1. Get a list of study areas in the program
+        2. Get the list of modules for each study area (TODO)
+        3. Save the study areas and list of modules (TODO)
+        4. Get the module description for each module (TODO)
+
+        If -c was specified, only step 4 is executed  (i.e. continued)
+        """
         self._scraper = scraper
         # TODO: --continue
         if self.args.program_id is None:
@@ -111,4 +129,4 @@ class CLI:
         areas = self._scraper.get_areas(self.args.program_id)
         print("Areas:")
         for area in areas:
-            print(area[0])
+            self._print_area(area)
