@@ -18,6 +18,7 @@ class Scraper:
     PROGRAM_SEARCH = MTS_BASE + "studiengaenge/suchen.html"
     PROGRAM_SEARCH_FORM_ID = "j_idt99"
     SHOW_COMBINED = MTS_BASE + "studiengaenge/anzeigenKombiniert.html"
+    STUDY_AREA_ID = "j_idt103:studiengangsbereich"
 
     def __init__(self, log_level, throttle_delay=2.0):
         """Create the Selenium WebDriver."""
@@ -89,6 +90,14 @@ class Scraper:
             raise RuntimeError("Unknown wait-for " + repr(wait_for))
 
         WebDriverWait(self.browser, timeout).until(until)
+
+    def _click_at_element(self, element):
+        """Click at the position of an element.
+
+        Useful if the click handler isn't on the element itself, so
+        element.click() doesn't work.
+        """
+        ActionChains(self.browser).move_to_element(element).click().perform()
 
     def find_programs(self, query):
         """Find degree programs.
@@ -198,15 +207,46 @@ class Scraper:
 
             # Expanding creates a POST request, so we should throttle
             self._throttle_request()
-            # There is no event listener on the toggler itself, so we
-            # can't click it
-            ActionChains(self.browser) \
-                .move_to_element(toggler).click().perform()
+            self._click_at_element(toggler)
             id = row.get_attribute("id").replace(":", r"\:")
             self._wait_for((
                 "vis_css",
                 f"#{id}[aria-expanded=true]"
             ))
+
+    def get_area_modules(self, area):
+        """Get modules for an area (not including subareas!)."""
+        self._throttle_request()
+        el = self.browser.find_element_by_id(self.STUDY_AREA_ID)
+        self._click_at_element(area.element)
+        # When the study area element is clicked (not necessarily
+        # changed), the study area element is removed and a new one is
+        # added.
+        self._wait_for((
+            "cond",
+            EC.staleness_of(el)
+        ))
+        self._wait_for(("vis_id", self.STUDY_AREA_ID))
+
+        rows = self.browser.find_elements_by_css_selector(
+            "#" + self.STUDY_AREA_ID.replace(":", r"\:") + " tbody tr"
+        )
+
+        modules = []
+        for i, row in enumerate(rows):
+            cells = row.find_elements_by_tag_name("td")
+            # There may be column-spanning rows like "no modules available"
+            if len(cells) == 8:
+                mod = Module(
+                    cells[0].text,
+                    cells[1].text,
+                    cells[2].text
+                )
+                modules.append(mod)
+            else:
+                self._logger.info("No modules in row #%d for area %s", i,
+                                  area.title)
+        return modules
 
 
 class Area:
@@ -218,13 +258,39 @@ class Area:
         self.element = element
         self.title = element.find_element_by_css_selector(":first-child").text
         self.subareas = []
+        self.modules = []
 
     def __str__(self):
         if self.subareas:
-            return self.title + " -> [" + ", ".join(map(str, self.subareas)) + \
-                "]"
+            return self.title + " -> [" + \
+                ", ".join(map(str, self.subareas)) + "]"
         else:
             return self.title
 
     def __repr__(self):
         return str(self)
+
+    def fetch_modules(self, scraper, include_subareas=True):
+        """Fetch the modules for this area.
+
+        scraper -- The scraper to use for fetching
+        include_subareas -- Fetch the modules for all subareas too
+        """
+        self._logger.debug("Fetching modules for %s", self.title)
+        self.modules = scraper.get_area_modules(self)
+        self._logger.debug("Fetched modules for %s: %s", self.title, self.modules)
+        if include_subareas:
+            for area in self.subareas:
+                area.fetch_modules(scraper, True)
+
+
+class Module:
+    """A module to fetch."""
+
+    def __init__(self, title, id, version):
+        self.title = title
+        self.id = id
+        self.version = version
+
+    def __str__(self):
+        return f"{self.title} (ID={self.id}, V={self.version})"

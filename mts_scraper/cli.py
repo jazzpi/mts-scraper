@@ -113,6 +113,8 @@ class CLI:
     def _print_area(self, area, level=0):
         """Print an area and all of its subareas."""
         print("  " * level + area.title)
+        for m in area.modules:
+            print("  " * level + " -> " + str(m))
         for a in area.subareas:
             self._print_area(a, level + 1)
 
@@ -122,7 +124,7 @@ class CLI:
         After figuring out the program ID, the following steps are
         executed:
         1. Get a list of study areas in the program
-        2. Get the list of modules for each study area (TODO)
+        2. Get the list of modules for each study area
         3. Save the study areas and list of modules (TODO)
         4. Get the module description for each module (TODO)
 
@@ -137,4 +139,5 @@ class CLI:
         areas = self._scraper.get_areas(self.args.program_id)
         print("Areas:")
         for area in areas:
+            area.fetch_modules(self._scraper)
             self._print_area(area)
