@@ -21,13 +21,14 @@ class Scraper:
 
     def __init__(self, log_level, throttle_delay=2.0):
         """Create the Selenium WebDriver."""
+        logging.getLogger(__name__).setLevel(log_level)
+        self._logger = logging.getLogger(__name__ + ".Scraper")
+
         option = webdriver.ChromeOptions()
         option.add_argument("--incognito")
         self.browser = webdriver.Chrome(options=option)
         self._last_request = 0
         self._throttle_delay = throttle_delay
-        self._logger = logging.getLogger("Scraper")
-        self._logger.setLevel(log_level)
 
     def __del__(self):
         """Close the Selenium WebDriver."""
@@ -35,9 +36,9 @@ class Scraper:
 
     def _throttle_request(self):
         """Check rate limit and (potentially) wait."""
-        self._logger.debug(f"{time.time()}, {self._last_request}")
         diff = self._throttle_delay - (time.time() - self._last_request)
         while diff > 0:
+            self._logger.debug("Waiting %f seconds", diff)
             time.sleep(diff)
             diff = self._throttle_delay - (time.time() - self._last_request)
         self._last_request = time.time()
@@ -202,6 +203,7 @@ class Area:
 
     def __init__(self, element):
         """Create the area for a tr from the combined page."""
+        self._logger = logging.getLogger(__name__ + ".Area")
         self.element = element
         self.title = element.find_element_by_css_selector(":first-child").text
         self.subareas = []

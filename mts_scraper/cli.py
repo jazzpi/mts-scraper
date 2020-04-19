@@ -41,8 +41,8 @@ class CLI:
         self.log_level = getattr(logging, self.args.verbosity)
 
         logging.basicConfig()
-        self._logger = logging.getLogger("CLI")
-        self._logger.setLevel(self.log_level)
+        logging.getLogger(__name__).setLevel(self.log_level)
+        self._logger = logging.getLogger(__name__ + ".CLI")
 
         if self.args.save is None:
             self.args.save = time.strftime("%Y-%m-%dT%H:%M:%S.json")
