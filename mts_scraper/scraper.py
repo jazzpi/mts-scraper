@@ -18,7 +18,8 @@ class Scraper:
     PROGRAM_SEARCH = MTS_BASE + "studiengaenge/suchen.html"
     PROGRAM_SEARCH_FORM_ID = "j_idt99"
     SHOW_COMBINED = MTS_BASE + "studiengaenge/anzeigenKombiniert.html"
-    STUDY_AREA_ID = "j_idt103:studiengangsbereich"
+    COMBINED_FORM_ID = "j_idt103"
+    STUDY_AREA_ID = COMBINED_FORM_ID + ":studiengangsbereich"
 
     def __init__(self, log_level=logging.INFO, throttle_delay=2.0):
         """Create the Selenium WebDriver."""
@@ -144,8 +145,35 @@ class Scraper:
         """Extract the ID from an `anzeigenKombiniert.html` link."""
         return int(href.rsplit("=", 1)[1])
 
-    def get_areas(self, combined_id):
-        """Get study areas for a combined ID.
+    def load_program(self, combined_id):
+        """Load the page for a degree program."""
+        self._load_page(
+            f"{self.SHOW_COMBINED}?id={combined_id}",
+            ("vis_css", "table[role=treegrid]")
+        )
+
+    def get_program_info(self):
+        """Get degree title and type from the currently loaded page.
+
+        You should call load_program() before calling this function.
+        """
+        h1 = self.browser.find_element_by_css_selector("main h1")
+        children = h1.find_elements_by_css_selector("*")
+        children_text = "".join((child.text for child in children))
+        title = h1.text.replace(children_text, "")
+        overview_table = self.browser.find_elements_by_css_selector(
+            f"#{self.COMBINED_FORM_ID} table"
+        )[0]
+        degree = overview_table.find_element_by_css_selector(
+            "tr:first-of-type td:nth-of-type(2)"
+        ).text
+
+        return (title, degree)
+
+    def get_areas(self):
+        """Get study areas from the currently loaded page.
+
+        You should call load_program() before calling this function.
 
         Returns a list of top-level areas, which may contain subareas.
         Each area is of the format
@@ -156,11 +184,6 @@ class Scraper:
             "subareas": [area_1, area_2, ...]
         }
         """
-        self._load_page(
-            f"{self.SHOW_COMBINED}?id={combined_id}",
-            ("vis_css", "table[role=treegrid]")
-        )
-
         self._expand_treegrid("table[role=treegrid] tbody")
 
         rows = self.browser.find_elements_by_css_selector(
@@ -172,8 +195,6 @@ class Scraper:
 
         areas = []
         for row in rows:
-            area = Area(row)
-
             # We need to figure out the parent to append to. Unless
             # we're at top level, this is always the last area at the
             # level above.
@@ -182,8 +203,12 @@ class Scraper:
             )
             level = len(indents)
             above = areas
+            parent = None
             for i in range(level):
+                parent = above[-1]
                 above = above[-1].subareas
+
+            area = Area(row, parent)
             above.append(area)
 
         return areas
@@ -238,9 +263,11 @@ class Scraper:
             # There may be column-spanning rows like "no modules available"
             if len(cells) == 8:
                 mod = Module(
+                    int(cells[1].text),
+                    int(cells[2].text),
                     cells[0].text,
-                    cells[1].text,
-                    cells[2].text
+                    int(cells[3].text),
+                    cells[5].text
                 )
                 modules.append(mod)
             else:
@@ -252,10 +279,11 @@ class Scraper:
 class Area:
     """A study area from the combined page."""
 
-    def __init__(self, element):
+    def __init__(self, element, parent):
         """Create the area for a tr from the combined page."""
         self._logger = logging.getLogger(__name__ + ".Area")
         self.element = element
+        self.parent = parent
         self.title = element.find_element_by_css_selector(":first-child").text
         self.subareas = []
         self.modules = []
@@ -278,19 +306,33 @@ class Area:
         """
         self._logger.debug("Fetching modules for %s", self.title)
         self.modules = scraper.get_area_modules(self)
-        self._logger.debug("Fetched modules for %s: %s", self.title, self.modules)
         if include_subareas:
             for area in self.subareas:
                 area.fetch_modules(scraper, True)
+
+    def flatten(self):
+        """Return a pre-order list of this area and its subareas."""
+        areas = [self]
+        for area in self.subareas:
+            areas += area.flatten()
+        return areas
 
 
 class Module:
     """A module to fetch."""
 
-    def __init__(self, title, id, version):
-        self.title = title
+    def __init__(self, id, version, title, ects, exam_type):
         self.id = id
         self.version = version
+        self.title = title
+        self.ects = ects
+        self.exam_type = exam_type
 
     def __str__(self):
         return f"{self.title} (ID={self.id}, V={self.version})"
+
+    def __hash__(self):
+        return hash((self.id, self.version))
+
+    def __eq__(self, other):
+        return self.id == other.id and self.version == other.version

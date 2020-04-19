@@ -41,6 +41,8 @@ following tables:
 - ECTS
 - Exam type
 - Details/Parts Fetched?
+- Faculty
+- Department
 - Learning Outcomes
 - Content
 
@@ -48,11 +50,13 @@ following tables:
 
 - Study area ID
 - Module ID
+- Module version
 
 ### Module Parts
 
 - ID (only for unique identification)
 - Title
+- Language
 - Type (VL/UE/SEM etc.)
 - Turnus
 - SWS

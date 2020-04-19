@@ -4,6 +4,7 @@
 import argparse
 import sys
 import logging
+import itertools
 
 
 class CLI:
@@ -106,7 +107,7 @@ class CLI:
         for a in area.subareas:
             self._print_area(a, level + 1)
 
-    def main(self, scraper):
+    def main(self, scraper, db):
         """Execute whatever was specified on the command line.
 
         After figuring out the program ID, the following steps are
@@ -119,13 +120,29 @@ class CLI:
         If -c was specified, only step 4 is executed  (i.e. continued)
         """
         self._scraper = scraper
-        # TODO: --continue
         if self.args.program_id is None:
             self.args.program_id = self._ask_for_program_id()
 
-        self._logger.info(f"Scraping course with ID {self.args.program_id}")
-        areas = self._scraper.get_areas(self.args.program_id)
-        print("Areas:")
+        # TODO: Continue a previous session if the course exists in DB
+        self._logger.info(f"Scraping program with ID {self.args.program_id}")
+        self._scraper.load_program(self.args.program_id)
+        title, degree = self._scraper.get_program_info()
+
+        areas = self._scraper.get_areas()
+        modules = set()
         for area in areas:
             area.fetch_modules(self._scraper)
+            area_modules = itertools.chain.from_iterable(
+                (a.modules for a in area.flatten())
+            )
+            for m in area_modules:
+                modules.add(m)
+
+        db.save_program(self.args.program_id, title, degree)
+        print("Areas:")
+        for area in areas:
             self._print_area(area)
+            db.save_area(area, self.args.program_id)
+        self._logger.debug("Saving %d modules", len(modules))
+        for module in modules:
+            db.save_module(module)
