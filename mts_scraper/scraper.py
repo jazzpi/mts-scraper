@@ -62,18 +62,29 @@ class Scraper:
                     second defines the condition itself.
                     Possible types:
                     "cond" -> Condition from support.expected_conditions
-                    "css_vs" -> CSS selector of an element that should
+                    "vis_css" -> CSS selector of an element that should
                                 be visible
+                    "vis_xpath" -> XPath of an element that should be
+                                   visible
+                    "vis_id" -> ID of an element that should be visible
         timeout -- Maximum time to wait for the condition. If this is
                    exceeded, a TimeoutException is raised.
         """
         if wait_for[0] == "cond":
             until = wait_for[1]
-        elif wait_for[0] == "css_vis":
+        elif wait_for[0] == "vis_css":
             self._logger.debug("Waiting for CSS selector " + wait_for[1])
             until = EC.visibility_of_element_located((
                 By.CSS_SELECTOR, wait_for[1]
             ))
+        elif wait_for[0] == "vis_xpath":
+            self._logger.debug("Waiting for XPath " + wait_for[1])
+            until = EC.visibility_of_element_located((
+                By.XPATH, wait_for[1]
+            ))
+        elif wait_for[0] == "vis_id":
+            self._logger.debug("Waiting for ID " + wait_for[1])
+            until = EC.visibility_of_element_located((By.ID, wait_for[1]))
         else:
             raise RuntimeError("Unknown wait-for " + repr(wait_for))
 
@@ -91,7 +102,7 @@ class Scraper:
         """
         self._load_page(
             self.PROGRAM_SEARCH,
-            ("css_vis", f"#{self.PROGRAM_SEARCH_FORM_ID} a.btn.btn-default")
+            ("vis_css", f"#{self.PROGRAM_SEARCH_FORM_ID} a.btn.btn-default")
         )
 
         search_box = self.browser.find_element_by_css_selector(
@@ -100,7 +111,7 @@ class Scraper:
         self._throttle_request()
         search_box.send_keys(query + Keys.ENTER)
         self._wait_for(
-            ("css_vis", f"#{self.PROGRAM_SEARCH_FORM_ID} table.table")
+            ("vis_css", f"#{self.PROGRAM_SEARCH_FORM_ID} table.table")
         )
 
         table = self.browser.find_element_by_css_selector(
@@ -138,7 +149,7 @@ class Scraper:
         """
         self._load_page(
             f"{self.SHOW_COMBINED}?id={combined_id}",
-            ("css_vis", "table[role=treegrid]")
+            ("vis_css", "table[role=treegrid]")
         )
 
         self._expand_treegrid("table[role=treegrid] tbody")
@@ -193,7 +204,7 @@ class Scraper:
                 .move_to_element(toggler).click().perform()
             id = row.get_attribute("id").replace(":", r"\:")
             self._wait_for((
-                "css_vis",
+                "vis_css",
                 f"#{id}[aria-expanded=true]"
             ))
 
