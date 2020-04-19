@@ -20,7 +20,7 @@ class Scraper:
     SHOW_COMBINED = MTS_BASE + "studiengaenge/anzeigenKombiniert.html"
     STUDY_AREA_ID = "j_idt103:studiengangsbereich"
 
-    def __init__(self, log_level, throttle_delay=2.0):
+    def __init__(self, log_level=logging.INFO, throttle_delay=2.0):
         """Create the Selenium WebDriver."""
         logging.getLogger(__name__).setLevel(log_level)
         self._logger = logging.getLogger(__name__ + ".Scraper")

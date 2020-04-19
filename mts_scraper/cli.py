@@ -3,7 +3,6 @@
 
 import argparse
 import sys
-import time
 import logging
 
 
@@ -13,15 +12,15 @@ class CLI:
     def __init__(self):
         """Parse and check the arguments."""
         parser = argparse.ArgumentParser(
+            prog="mts_scraper",
             description="Scrape the MTS",
-            epilog="""If no target is given by any option, it can be selected
-            interactively."""
+            epilog="""If neither -p nor -n are specified, the degree program
+            can be selected interactively.""",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
         parser.add_argument("-r", "--rate-limit", default=2.0, type=float,
                             help="""Minimum delay between to requests (default:
                             %(default)s)""")
-        parser.add_argument("-c", "--continue", metavar="FILE", dest="cont",
-                            help="Continue a previous scraping session")
         parser.add_argument("-p", "--program-id", metavar="ID",
                             help="Scrape a degree program given by ID")
         parser.add_argument("-n", "--program-name", metavar="NAME",
@@ -29,11 +28,13 @@ class CLI:
                             scrape it""")
         parser.add_argument("-d", "--database", metavar="FILE",
                             default="mts.sqlite",
-                            help="""SQLite database for output (default:
-                            %(default)s)""")
-        parser.add_argument("-s", "--save", metavar="FILE",
-                            help="""JSON file for saving the scraping progress
-                            (default: CURRENT_DATETIME.json)""")
+                            help="""SQLite database for output. If the database
+                            exists, only modules that are not in it already
+                            will be fetched.""")
+        parser.add_argument("-f", "--force-refetch", action="store_true",
+                            help="""Force a refetch of study areas/module
+                            lists, even if they are already stored in the
+                            database.""")
         parser.add_argument("-v", "--verbosity", default="INFO",
                             choices=["DEBUG", "INFO", "WARN", "ERROR",
                                      "CRITICAL"])
@@ -44,29 +45,16 @@ class CLI:
         logging.getLogger(__name__).setLevel(self.log_level)
         self._logger = logging.getLogger(__name__ + ".CLI")
 
-        if self.args.save is None:
-            self.args.save = time.strftime("%Y-%m-%dT%H:%M:%S.json")
-
         self._check_args()
         self._scraper = None
 
     def _check_args(self):
         """Check if specified arguments are valid, abort otherwise."""
-        if self.args.cont is not None:
-            self._logger.warning("--continue is not implemented yet!")
-            sys.exit(1)
-        if self._count_actions() > 1:
+        if self.args.program_id is not None and \
+           self.args.program_name is not None:
             self._logger.warning(
-                "Only one of -c, -p and -n can be specified at once!")
+                "Only one of -p and -n can be specified!")
             sys.exit(1)
-
-    def _count_actions(self):
-        """Count the number of actions specified (-c, -p or -n)."""
-        return (
-            (self.args.cont is not None) +
-            (self.args.program_id is not None) +
-            (self.args.program_name is not None)
-        )
 
     def _ask_for_program_id(self):
         """Figure out what program ID we should scrape.
