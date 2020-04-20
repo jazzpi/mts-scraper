@@ -43,6 +43,10 @@ class CLI:
         self.log_level = getattr(logging, self.args.verbosity)
 
         logging.basicConfig()
+        fh = logging.FileHandler("mts.err")
+        fh.setLevel(logging.WARN)
+        fh.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s:%(message)s"))
+        logging.getLogger("").addHandler(fh)
         logging.getLogger(__name__).setLevel(self.log_level)
         self._logger = logging.getLogger(__name__ + ".CLI")
 
