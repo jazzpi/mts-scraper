@@ -165,7 +165,7 @@ class Database:
 
     def unfetched_modules(self, program_id):
         """Get a list of modules in a program with unfetched details."""
-        return self._con.execute(
+        rows = self._con.execute(
             """\
             SELECT DISTINCT M.id, M.version, M.title FROM modules M
             INNER JOIN modules_study_areas I ON M.id = I.module_id AND M.version = I.module_version
@@ -174,6 +174,7 @@ class Database:
             """,
             (program_id,)
         ).fetchall()
+        return map(lambda r: Module(*r), rows)
 
     def get_modules(self, identity_only=False):
         """Get an iterator over the modules from the database.
@@ -183,3 +184,39 @@ class Database:
         """
         rows = self._con.execute("SELECT id, version FROM modules").fetchall()
         return map(lambda r: Module(*r), rows)
+
+    def save_module_details(self, module, details, parts):
+        """Save the details/parts for a module.
+
+        details_fetched is also set to TRUE.
+        """
+        with self._con:
+            self._con.execute(
+                """\
+                UPDATE modules
+                SET details_fetched = TRUE,
+                    faculty = ?,
+                    department = ?,
+                    learning_outcomes = ?,
+                    content = ?
+                WHERE id = ? AND version = ?;""",
+                (details["faculty"], details["department"],
+                 details["learning_outcomes"], details["content"],
+                 module.id, module.version)
+            )
+            parts_data = map(
+                lambda p: (p.title, p.language, p.type_, p.turnus, p.sws,
+                           p.number),
+                parts
+            )
+            self._con.executemany(
+                f"""\
+                INSERT INTO module_parts (
+                  title, language, type, turnus, sws, number, module_id,
+                  module_version
+                ) VALUES (
+                  ?, ?, ?, ?, ?, ?, {module.id}, {module.version}
+                );
+                """,
+                parts_data
+            )

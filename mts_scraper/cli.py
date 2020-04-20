@@ -167,5 +167,7 @@ class CLI:
 
         for module in self._db.unfetched_modules(self.args.program_id):
             self._logger.info("Fetching details for `%s' (ID=%d, V=%d)",
-                              module[2], module[0], module[1])
-            print(repr(self._scraper.get_module_details(module[0], module[1])))
+                              module.title, module.id, module.version)
+            details, parts = self._scraper.get_module_details(
+                module.id, module.version)
+            self._db.save_module_details(module, details, parts)
