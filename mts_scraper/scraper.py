@@ -223,26 +223,34 @@ class Scraper:
 
         tbody_sel -- CSS selector for the tbody element.
         """
-        rows = self.browser.find_elements_by_css_selector(f"{tbody_sel} tr")
-        for row in rows:
-            # Check if the row is already expanded
-            if row.get_attribute("aria-expanded") == "true":
-                continue
+        new_expansions = True
+        while new_expansions:
+            new_expansions = False
+            rows = self.browser.find_elements_by_css_selector(
+                tbody_sel + " tr")
+            self._logger.debug("Expanding treegrid with %d rows", len(rows))
+            for row in rows:
+                # Check if the row is already expanded
+                if row.get_attribute("aria-expanded") == "true":
+                    continue
 
-            # All rows have a toggler, but it's hidden for
-            # non-expandable ones
-            toggler = row.find_element_by_css_selector(".ui-treetable-toggler")
-            if "visibility: hidden" in toggler.get_attribute("style"):
-                continue
+                # All rows have a toggler, but it's hidden for
+                # non-expandable ones
+                toggler = row.find_element_by_css_selector(
+                    ".ui-treetable-toggler")
+                if "visibility: hidden" in toggler.get_attribute("style"):
+                    continue
 
-            # Expanding creates a POST request, so we should throttle
-            self._throttle_request()
-            self._click_at_element(toggler)
-            id = row.get_attribute("id").replace(":", r"\:")
-            self._wait_for((
-                "vis_css",
-                f"#{id}[aria-expanded=true]"
-            ))
+                new_expansions = True
+
+                # Expanding creates a POST request, so we should throttle
+                self._throttle_request()
+                self._click_at_element(toggler)
+                id = row.get_attribute("id").replace(":", r"\:")
+                self._wait_for((
+                    "vis_css",
+                    f"#{id}[aria-expanded=true]"
+                ))
 
     def get_area_modules(self, area):
         """Get modules for an area (not including subareas!)."""

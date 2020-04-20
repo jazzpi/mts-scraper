@@ -129,8 +129,8 @@ class CLI:
             self._db.save_area(area, self.args.program_id)
         found_modules = len(modules)
         modules -= set(self._db.get_modules(True))
-        self._logger.debug("Saving %d modules (of %d modules in program)",
-                           len(modules), found_modules)
+        self._logger.info("Found %d new modules in this program.",
+                          len(modules))
         for module in modules:
             self._db.save_module(module)
 
