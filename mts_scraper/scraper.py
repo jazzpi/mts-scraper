@@ -391,7 +391,39 @@ class Scraper:
         module_id and module_version are only used for logging purposes
         and can be left at None.
         """
-        return []
+        parts_box = self.browser.find_element_by_xpath(
+            "//*[contains(@id,'BoxBestandteile')]")
+
+        header_row = parts_box.find_element_by_css_selector(".row:nth-of-type(1)")
+        if not header_row.find_elements_by_css_selector("h1,h2,h3,h4,h5,h6"):
+            self._logger.warn(
+                "Module parts header row for (ID=%d, V=%d) did not contain"
+                "header! (text instead: %s)", module_id, module_version,
+                header_row.text
+            )
+
+        rows = parts_box.find_elements_by_css_selector(
+            ".row:nth-of-type(2) table.table tr:not(:first-of-type)")
+
+        parts = []
+        for row in rows:
+            cols = row.find_elements_by_tag_name("td")
+            if len(cols) != 6:
+                self._logger.warn(
+                    "Module part for (ID=%d, V=%d) has weird length %d! "
+                    "(text: %s)", module_id, module_version, len(cols),
+                    row.text
+                )
+                continue
+            title = cols[0].text.strip()
+            type_ = cols[1].text.strip()
+            number = cols[2].text.strip()
+            turnus = cols[3].text.strip()
+            language = cols[4].text.strip()
+            sws = cols[5].text.strip()
+            parts.append(ModulePart(title, language, type_, turnus, sws, number))
+
+        return parts
 
 
 class Area:
@@ -454,3 +486,29 @@ class Module:
 
     def __eq__(self, other):
         return self.id == other.id and self.version == other.version
+
+
+class ModulePart:
+    """A module part."""
+
+    def __init__(self, title, language, type_, turnus, sws, number):
+        self.title = title
+        self.language = language
+        self.type_ = type_
+        self.turnus = turnus
+        self.sws = sws
+        self.number = number
+
+    def __str__(self):
+        if self.number:
+            return f"{self.title} ({self.number})"
+        return self.title
+
+    def __repr__(self):
+        return str(self)
+
+    def __hash__(self):
+        return hash(self.id)
+
+    def __eq__(self, other):
+        return self.id == other.id
