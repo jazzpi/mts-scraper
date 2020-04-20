@@ -60,7 +60,9 @@ following tables:
 - Type (VL/UE/SEM etc.)
 - Turnus
 - SWS
+- Veranstaltungsnummer (if available)
 - Module ID
+- Module version
 
 ## Continuing a scraping session
 

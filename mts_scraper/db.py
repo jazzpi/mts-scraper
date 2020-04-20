@@ -84,9 +84,11 @@ class Database:
                   type TEXT NOT NULL,
                   turnus TEXT NOT NULL,
                   sws INTEGER NOT NULL,
+                  number TEXT,
                   module_id INTEGER NOT NULL,
-                  FOREIGN KEY (module_id)
-                    REFERENCES modules (id)
+                  module_version INTEGER NOT NULL,
+                  FOREIGN KEY (module_id, module_version)
+                    REFERENCES modules (id, version)
                     ON UPDATE NO ACTION
                     ON DELETE CASCADE
                 );"""
