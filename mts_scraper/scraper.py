@@ -18,8 +18,6 @@ class Scraper:
     PROGRAM_SEARCH = MTS_BASE + "studiengaenge/suchen.html"
     PROGRAM_SEARCH_FORM_ID = "j_idt99"
     SHOW_COMBINED = MTS_BASE + "studiengaenge/anzeigenKombiniert.html"
-    COMBINED_FORM_ID = "j_idt103"
-    STUDY_AREA_ID = COMBINED_FORM_ID + ":studiengangsbereich"
 
     def __init__(self, log_level=logging.INFO, throttle_delay=2.0):
         """Create the Selenium WebDriver."""
@@ -31,6 +29,8 @@ class Scraper:
         self.browser = webdriver.Chrome(options=option)
         self._last_request = 0
         self._throttle_delay = throttle_delay
+        self.combined_form_id = None
+        self.study_area_id = None
 
     def __del__(self):
         """Close the Selenium WebDriver."""
@@ -151,6 +151,10 @@ class Scraper:
             f"{self.SHOW_COMBINED}?id={combined_id}",
             ("vis_css", "table[role=treegrid]")
         )
+        self.combined_form_id = self.browser.find_element_by_css_selector(
+            "main form"
+        ).get_attribute("id")
+        self.study_area_id = self.combined_form_id + ":studiengangsbereich"
 
     def get_program_info(self):
         """Get degree title and type from the currently loaded page.
@@ -162,7 +166,7 @@ class Scraper:
         children_text = "".join((child.text for child in children))
         title = h1.text.replace(children_text, "")
         overview_table = self.browser.find_elements_by_css_selector(
-            f"#{self.COMBINED_FORM_ID} table"
+            f"main form table"
         )[0]
         degree = overview_table.find_element_by_css_selector(
             "tr:first-of-type td:nth-of-type(2)"
@@ -242,7 +246,7 @@ class Scraper:
     def get_area_modules(self, area):
         """Get modules for an area (not including subareas!)."""
         self._throttle_request()
-        el = self.browser.find_element_by_id(self.STUDY_AREA_ID)
+        el = self.browser.find_element_by_id(self.study_area_id)
         self._click_at_element(area.element)
         # When the study area element is clicked (not necessarily
         # changed), the study area element is removed and a new one is
@@ -251,10 +255,10 @@ class Scraper:
             "cond",
             EC.staleness_of(el)
         ))
-        self._wait_for(("vis_id", self.STUDY_AREA_ID))
+        self._wait_for(("vis_id", self.study_area_id))
 
         rows = self.browser.find_elements_by_css_selector(
-            "#" + self.STUDY_AREA_ID.replace(":", r"\:") + " tbody tr"
+            "#" + self.study_area_id.replace(":", r"\:") + " tbody tr"
         )
 
         modules = []
