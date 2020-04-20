@@ -321,7 +321,7 @@ class Area:
 class Module:
     """A module to fetch."""
 
-    def __init__(self, id, version, title, ects, exam_type):
+    def __init__(self, id, version, title=None, ects=None, exam_type=None):
         self.id = id
         self.version = version
         self.title = title

@@ -48,6 +48,7 @@ class CLI:
 
         self._check_args()
         self._scraper = None
+        self._db = None
 
     def _check_args(self):
         """Check if specified arguments are valid, abort otherwise."""
@@ -107,27 +108,7 @@ class CLI:
         for a in area.subareas:
             self._print_area(a, level + 1)
 
-    def main(self, scraper, db):
-        """Execute whatever was specified on the command line.
-
-        After figuring out the program ID, the following steps are
-        executed:
-        1. Get a list of study areas in the program
-        2. Get the list of modules for each study area
-        3. Save the study areas and list of modules (TODO)
-        4. Get the module description for each module (TODO)
-
-        If -c was specified, only step 4 is executed  (i.e. continued)
-        """
-        self._scraper = scraper
-        if self.args.program_id is None:
-            self.args.program_id = self._ask_for_program_id()
-
-        # TODO: Continue a previous session if the course exists in DB
-        self._logger.info(f"Scraping program with ID {self.args.program_id}")
-        self._scraper.load_program(self.args.program_id)
-        title, degree = self._scraper.get_program_info()
-
+    def _fetch_areas_and_modules(self):
         areas = self._scraper.get_areas()
         modules = set()
         for area in areas:
@@ -138,11 +119,49 @@ class CLI:
             for m in area_modules:
                 modules.add(m)
 
-        db.save_program(self.args.program_id, title, degree)
         print("Areas:")
         for area in areas:
             self._print_area(area)
-            db.save_area(area, self.args.program_id)
-        self._logger.debug("Saving %d modules", len(modules))
+            self._db.save_area(area, self.args.program_id)
+        found_modules = len(modules)
+        modules -= set(self._db.get_modules(True))
+        self._logger.debug("Saving %d modules (of %d modules in program)",
+                           len(modules), found_modules)
         for module in modules:
-            db.save_module(module)
+            self._db.save_module(module)
+
+    def main(self, scraper, db):
+        """Execute whatever was specified on the command line.
+
+        After figuring out the program ID, the following steps are
+        executed:
+        1. Get a list of study areas in the program
+        2. Get the list of modules for each study area
+        3. Save the study areas and list of modules
+        4. Get the module description for each module (TODO)
+
+        If -c was specified, only step 4 is executed  (i.e. continued)
+        """
+        self._scraper = scraper
+        self._db = db
+        if self.args.program_id is None:
+            self.args.program_id = self._ask_for_program_id()
+
+        self._logger.info(f"Scraping program with ID {self.args.program_id}")
+
+        if self._db.program_exists(self.args.program_id):
+            self._logger.info(
+                "Program already exists in DB, continuing previous session.")
+            title, degree = self._db.get_program_info(self.args.program_id)
+        else:
+            self._logger.info(
+                "Program does not exist in DB, fetching study areas/modules.")
+            self._scraper.load_program(self.args.program_id)
+            title, degree = self._scraper.get_program_info()
+            self._fetch_areas_and_modules()
+            self._db.save_program(self.args.program_id, title, degree)
+
+        for module in self._db.unfetched_modules(self.args.program_id):
+            # TODO
+            self._logger.info("Fetching details for `%s' (ID=%d, V=%d)",
+                              module[2], module[0], module[1])

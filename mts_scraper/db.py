@@ -3,6 +3,8 @@
 import logging
 import sqlite3
 
+from .scraper import Module
+
 
 class Database:
     """Database connection."""
@@ -92,9 +94,16 @@ class Database:
 
     def program_exists(self, program_id):
         """Check if a degree program exists in the database."""
-        rows = self._con.execute("SELECT id from programs WHERE id = ?",
-                                 program_id).fetchone()
-        return rows is not None
+        row = self._con.execute("SELECT id FROM programs WHERE id = ?",
+                                (program_id,)).fetchone()
+        return row is not None
+
+    def get_program_info(self, program_id):
+        """Get degree type and title from the databse."""
+        row = self._con.execute(
+            "SELECT title, degree FROM programs WHERE id = ?", (program_id,)
+        ).fetchone()
+        return row
 
     def save_program(self, program_id, title, degree_type):
         """Save a degree program to the DB."""
@@ -151,3 +160,24 @@ class Database:
                 (module.id, module.version, module.title, module.ects,
                  module.exam_type)
             )
+
+    def unfetched_modules(self, program_id):
+        """Get a list of modules in a program with unfetched details."""
+        return self._con.execute(
+            """\
+            SELECT DISTINCT M.id, M.version, M.title FROM modules M
+            INNER JOIN modules_study_areas I ON M.id = I.module_id AND M.version = I.module_version
+            INNER JOIN study_areas A on A.id = I.study_area_id
+            WHERE A.program_id = ?
+            """,
+            (program_id,)
+        ).fetchall()
+
+    def get_modules(self, identity_only=False):
+        """Get an iterator over the modules from the database.
+
+        If identity_only is True, only the id and version fields are
+        set.
+        """
+        rows = self._con.execute("SELECT id, version FROM modules").fetchall()
+        return map(lambda r: Module(*r), rows)
