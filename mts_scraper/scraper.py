@@ -18,6 +18,7 @@ class Scraper:
     PROGRAM_SEARCH = MTS_BASE + "studiengaenge/suchen.html"
     PROGRAM_SEARCH_FORM_ID = "j_idt99"
     SHOW_COMBINED = MTS_BASE + "studiengaenge/anzeigenKombiniert.html"
+    SHOW_MODULE = MTS_BASE + "bolognamodule/beschreibung/anzeigen.html"
 
     def __init__(self, log_level=logging.INFO, throttle_delay=2.0):
         """Create the Selenium WebDriver."""
@@ -164,7 +165,7 @@ class Scraper:
         h1 = self.browser.find_element_by_css_selector("main h1")
         children = h1.find_elements_by_css_selector("*")
         children_text = "".join((child.text for child in children))
-        title = h1.text.replace(children_text, "")
+        title = h1.text.replace(children_text, "", 1)
         overview_table = self.browser.find_elements_by_css_selector(
             f"main form table"
         )[0]
@@ -278,6 +279,119 @@ class Scraper:
                 self._logger.info("No modules in row #%d for area %s", i,
                                   area.title)
         return modules
+
+    def get_module_details(self, module_id, module_version):
+        """Get module details."""
+        self._load_page(
+            f"{self.SHOW_MODULE}?number={module_id}&version={module_version}",
+            ("vis_xpath", "//*[contains(@id,'BoxLiteratur')]")
+        )
+        details = self._get_module_page_details(module_id, module_version)
+        module_parts = self._get_module_parts(module_id, module_version)
+        return details, module_parts
+
+    @staticmethod
+    def _starts_with_any(haystack, needles):
+        """Return True if the haystack start with any of the needles."""
+        for n in needles:
+            if haystack.startswith(n):
+                return True
+        return False
+
+    def _remove_label_text(self, element, row, col, expected_text,
+                           log_label=None, module_id=None,
+                           module_version=None):
+        """Remove the label's text from the header information.
+
+        element -- The header information table element
+        row -- The row number (starting at 1)
+        col -- The column number (starting at 1)
+        expected_text -- an iterable of the possible label text starts
+                         we might expect. If the label's text matches
+                         none of these, a warning will be logged.
+        log_label -- Type of label, only used for logging
+        module_id -- Only used for logging
+        module_version -- Only used for logging
+        """
+        col = element.find_element_by_css_selector(
+            f".row:nth-of-type({row}) [class^='col']:nth-of-type({col})")
+        label = col.find_element_by_tag_name("label").text
+        if not self._starts_with_any(label, expected_text):
+            self._logger.warn("%s label for (ID=%d, V=%d) was %s", log_label,
+                              module_id, module_version, label)
+        return col.text.replace(label, "", 1).strip()
+
+    def _remove_section_header(self, element, expected_header,
+                               log_section=None, module_id=None,
+                               module_version=None):
+        """Remove a section's header from the section text.
+
+        element -- The section element
+        expected_header -- an iterable of the possible header starts we
+                           might expect. If the header's text matches
+                           none of these, a warning will be logged.
+        log_section -- Type of section, only used for logging
+        module_id -- Only used for logging
+        module_version -- Only used for logging
+        """
+        header = element.find_element_by_css_selector("h1,h2,h3,h4,h5,h6").text
+        if not self._starts_with_any(header, expected_header):
+            self._logger.warn("%s section header for (ID=%d, V=%d) was %s",
+                              log_section, module_id, module_version, header)
+        return element.text.replace(header, "", 1).strip("\n\r")
+
+    def _get_module_page_details(self, module_id=None, module_version=None):
+        """Get the details we need from the (loaded) module page.
+
+        This includes faculty, department, learning outcomes and
+        content.
+
+        module_id and module_version are only used for logging purposes
+        and can be left at None.
+        """
+        header_info = self.browser.find_element_by_xpath(
+            "//*[contains(@id,'BoxKopfinformationen')]")
+
+        faculty = self._remove_label_text(
+            header_info, 1, 3, ("Faculty", "Fakultät"),
+            "Faculty", module_id, module_version
+        )
+        department = self._remove_label_text(
+            header_info, 2, 2, ("Area of expertise", "Fachgebiet"),
+            "Department", module_id, module_version
+        )
+
+        header_info_sel = "#" + \
+            header_info.get_attribute("id").replace(":", r"\:")
+
+        lo_el = self.browser.find_element_by_css_selector(
+            f"{header_info_sel} + .row")
+        learning_outcomes = self._remove_section_header(
+            lo_el, ("Learning Outcomes", "Lernergebnisse"),
+            "Learning Outcomes", module_id, module_version
+        )
+
+        content_el = lo_el.find_element_by_css_selector(
+            f"{header_info_sel} + .row + .row")
+        content = self._remove_section_header(
+            content_el, ("Content", "Lehrinhalte"),
+            "Content", module_id, module_version
+        )
+
+        return {
+            "faculty": faculty,
+            "department": department,
+            "learning_outcomes": learning_outcomes,
+            "content": content
+        }
+
+    def _get_module_parts(self, module_id=None, module_version=None):
+        """Get the module parts from the (loaded) module page.
+
+        module_id and module_version are only used for logging purposes
+        and can be left at None.
+        """
+        return []
 
 
 class Area:

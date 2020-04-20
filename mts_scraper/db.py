@@ -168,7 +168,7 @@ class Database:
             SELECT DISTINCT M.id, M.version, M.title FROM modules M
             INNER JOIN modules_study_areas I ON M.id = I.module_id AND M.version = I.module_version
             INNER JOIN study_areas A on A.id = I.study_area_id
-            WHERE A.program_id = ?
+            WHERE A.program_id = ? AND M.details_fetched = FALSE
             """,
             (program_id,)
         ).fetchall()
